@@ -1,75 +1,112 @@
 """
 
-Modular Design: Code is split into logical modules for better maintainability
-Clear Separation of Concerns: Each component has a specific responsibility
-Configuration Management: Settings and constants are centralized
-Utility Functions: Common functionality is extracted into utility modules
-Documentation: Added README.md with clear instructions
-Dependencies: Created requirements.txt for easy installation
+Future enhancements could focus on expanding the story delivery options to create a more
+interactive and accessible experience.
+
+Adding support for multiple output formats such as:
+    1. audio narration (using text-to-speech models)
+    2. illustrated versions (using DALL-E or similar image generation models) 
+    3. interactive picture books
+
+This would make the stories more engaging for different learning styles and preferences.
+The system could be enhanced to ask users upfront about their preferred story format and
+automatically generate the appropriate media, potentially including background music for
+audio versions or animated elements for digital picture books.
+
+Additional improvements could include voice customization for audio narration, style
+selection for illustrations (e.g., watercolor, cartoon, realistic), and interactive elements
+where children could make choices that influence the story's direction. 
 
 
 """
 
+from .core.planner import StoryPlanner
+from .core.generator import StoryGenerator
+from .core.judge import StoryJudge
 from .utils.llm_utils import initialize_openai_client
-from .utils.age_utils import get_age_from_user
-from .core.generator import generate_story
-from .core.judge import judge_story
-from .core.reviser import revise_story
 
 def main():
     """Main application logic."""
     # Give Introduction
-    print("🌟 Welcome to the Enhanced Bedtime Story Generator! 🌟")
-    print("Kassi and Barnaby create perfect bedtime stories for ages 5-10!")
+    print("🌟 Welcome to the Magical Bedtime Story Generator! 🌟")
+    print("By: Kassi Winter, creating perfect bedtime stories for ages 5-10!")
     print("-" * 60)
 
     # Initialize OpenAI client
     client = initialize_openai_client()
 
+    # Initialize our agents
+    planner = StoryPlanner(client)
+    generator = StoryGenerator(client)
+    judge = StoryJudge(client)
+
     # Get story request
     user_input = input("What kind of magical bedtime story would you like to hear tonight? 🌙\n> ")
-
     if not user_input.strip():
         print("Oops! You didn't specify a story. Please try again.")
         return
 
     # Get age for customization
-    age = get_age_from_user()
-    print(f"\n🎭 Creating a perfect bedtime story for a {age}-year-old...")
+    while True:
+        try:
+            age = int(input("What age is this story for? (5-10): "))
+            if 5 <= age <= 10:
+                break
+            print("Please enter an age between 5 and 10.")
+        except ValueError:
+            print("Please enter a valid number.")
 
-    # 1. Generate enhanced story
-    story_v1 = generate_story(client, user_input, age)
-    print(f"\n--- Your Personalized Bedtime Story ---")
-    print(story_v1)
+    print("\n1. 📝 Planning your story...")
+    story_plan = planner.create_outline(user_input, age)
+    
+    print("\n2. ✨ Creating your story...")
+    story = generator.generate_story(user_input, age, story_plan)
+    
+    print("\n3. 🎯 Evaluating the story...")
+    metrics, feedback, judgment = judge.evaluate_story(story, age)
+    
+    print("\n--- Your Personalized Bedtime Story ---")
+    print(story)
     print("--- End of Story ---")
+    
+    print(f"\n📊 Story Evaluation Scores:")
+    for metric, value in vars(metrics).items():
+        if not metric.startswith('_'):  # Skip internal attributes
+            print(f"- {metric.replace('_', ' ').title()}: {value:.2f}")
+    print(f"Overall Score: {metrics.overall_score:.2f}")
 
-    # 2. Judge with age-aware criteria  
-    judgement = judge_story(client, story_v1, user_input, age)
+    # Check both the LLM judgment and metric thresholds
+    needs_revision = judgment == "NEEDS_REVISION" or judge.needs_revision(metrics)
 
-    final_story = ""
-
-    # 3. Handle revision if needed
-    if judgement.startswith("STORY_APPROVED"):
-        print(f"\n🎉 Barnaby says: This story is perfectly crafted for a {age}-year-old's bedtime!")
-        final_story = story_v1
-    elif judgement.startswith("STORY_NEEDS_REVISION"):
-        print(f"\n📝 Barnaby has expert suggestions to perfect this bedtime story:")
-        feedback_text = judgement.replace("STORY_NEEDS_REVISION\n", "", 1).strip()
-        print(f"Expert feedback: {feedback_text}")
+    if needs_revision:
+        print("\n✍️ Making some improvements based on feedback...")
+        print("Feedback received:")
+        for item in feedback:
+            print(f"- {item}")
+            
+        print("\n4. 🌟 Generating improved version...")
+        improved_story = generator.generate_story(
+            user_input, 
+            age, 
+            story_plan,
+            feedback=feedback
+        )
         
-        # 4. Create enhanced revision
-        story_v2 = revise_story(client, story_v1, user_input, feedback_text, age)
-        print(f"\n--- Your Perfected Bedtime Story ---")
-        print(story_v2)
-        print("--- End of Perfected Story ---")
-        print(f"\n✨ This polished version should be absolutely perfect for a {age}-year-old's bedtime!")
-        final_story = story_v2
+        print("\n--- Your Improved Bedtime Story ---")
+        print(improved_story)
+        print("--- End of Story ---")
+        
+        # Re-evaluate the improved story
+        improved_metrics, improved_feedback, improved_judgment = judge.evaluate_story(improved_story, age)
+        print(f"\n📊 Improved Story Evaluation Scores:")
+        for metric, value in vars(improved_metrics).items():
+            if not metric.startswith('_'):
+                print(f"- {metric.replace('_', ' ').title()}: {value:.2f}")
+        print(f"Overall Score: {improved_metrics.overall_score:.2f}")
     else:
-        print(f"\n🤔 The review was unclear, but here's your personalized story:")
-        final_story = story_v1
+        print("\n✨ Perfect! The story meets all quality criteria!")
 
-    print(f"\n🌙 Sweet dreams! Your perfect bedtime story is ready! 💫")
-    print("May it carry you off to the most wonderful dreams! 🌟")
+    print("\n🌙 Sweet dreams! Your perfect bedtime story is ready! 💫")
 
 if __name__ == "__main__":
     main() 

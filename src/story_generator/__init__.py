@@ -1,4 +1,4 @@
-"""Story Generator package."""
+"""Story Generator Package."""
 
 from .main import main
 

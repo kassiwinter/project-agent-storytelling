@@ -1,9 +1,12 @@
-"""Utilities for interacting with the OpenAI API."""
+"""Utilities for interacting with language models."""
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 from ..config.settings import (
     OPENAI_API_KEY,
-    MODEL_NAME
+    MODEL_NAME,
+    MAX_TOKENS_STORY,
+    TEMPERATURE_STORYTELLER
 )
 
 def initialize_openai_client():
@@ -15,33 +18,24 @@ def initialize_openai_client():
         print(f"Error initializing OpenAI client: {e}")
         exit()
 
-def call_llm(client: OpenAI, system_prompt_content: str, user_prompt_content: str, max_tokens: int, temperature: float) -> str:
-    """
-    Make a call to the OpenAI ChatCompletion API.
-    
-    Args:
-        client: OpenAI client instance
-        system_prompt_content: The system prompt to use
-        user_prompt_content: The user prompt to use
-        max_tokens: Maximum tokens to generate
-        temperature: Temperature setting for response creativity
-    
-    Returns:
-        str: The generated response text
-    """
+def call_llm(
+    client: OpenAI,
+    system_prompt_content: str,
+    user_prompt_content: str,
+    max_tokens: int = MAX_TOKENS_STORY,
+    temperature: float = TEMPERATURE_STORYTELLER
+) -> str:
+    """Call the language model and return its response."""
     try:
-        resp = client.chat.completions.create(
+        response: ChatCompletion = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": system_prompt_content},
                 {"role": "user", "content": user_prompt_content}
             ],
-            stream=False,
             max_tokens=max_tokens,
-            temperature=temperature,
+            temperature=temperature
         )
-        return resp.choices[0].message.content.strip()
-    
+        return response.choices[0].message.content or ""
     except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
-        return "Error: Could not generate response from LLM." 
+        raise Exception(f"Error calling OpenAI API: {str(e)}") 
